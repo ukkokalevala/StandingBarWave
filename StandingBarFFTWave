@@ -1,0 +1,62 @@
+#include <Arduino.h>
+#include <arduinoFFT.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1  // Reset pin (not used)
+#define SOUND_SENSOR_PIN 4 // Sound sensor connected to GPIO 4
+#define SAMPLES 64         // Number of FFT samples (must be a power of 2)
+#define SAMPLING_FREQUENCY 4000  // 4kHz sampling rate
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+double vReal[SAMPLES]; // Real part
+double vImag[SAMPLES]; // Imaginary part
+ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, SAMPLES, SAMPLING_FREQUENCY);
+
+void setup() {
+    Serial.begin(115200);
+    Wire.begin(7, 6);  // SDA = GPIO 7, SCL = GPIO 6
+    pinMode(SOUND_SENSOR_PIN, INPUT);
+    
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println(F("SSD1306 allocation failed"));
+        for (;;);
+    }
+    
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(WHITE);
+    display.setCursor(0, 0);
+    display.println("Standing Wave FFT");
+    display.display();
+    delay(2000);
+}
+
+void loop() {
+    // Sampling sound data
+    for (int i = 0; i < SAMPLES; i++) {
+        vReal[i] = analogRead(SOUND_SENSOR_PIN);
+        vImag[i] = 0; // Imaginary part is 0
+        delayMicroseconds(1000000 / SAMPLING_FREQUENCY);
+    }
+
+    // Perform FFT
+    FFT.windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
+    FFT.compute(FFT_FORWARD);
+    FFT.complexToMagnitude();
+
+    // Display FFT results on OLED
+    display.clearDisplay();
+    
+    for (int i = 1; i < (SAMPLES / 2); i++) {  // Only show first half of FFT bins
+        int barHeight = (int)vReal[i] / 10;  // Scale to fit OLED height
+        if (barHeight > SCREEN_HEIGHT) barHeight = SCREEN_HEIGHT;
+        display.drawLine(i * 2, SCREEN_HEIGHT, i * 2, SCREEN_HEIGHT - barHeight, WHITE);
+    }
+
+    display.display();
+    delay(100);
+}
