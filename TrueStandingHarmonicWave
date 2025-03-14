@@ -1,0 +1,57 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1  
+#define SOUND_SENSOR_PIN 4  
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+float timeStep = 0;  // Animation time shift
+
+void setup() {
+    Serial.begin(115200);
+    Wire.begin(7, 6);  
+    pinMode(SOUND_SENSOR_PIN, INPUT);
+
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println(F("SSD1306 allocation failed"));
+        for (;;);
+    }
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(WHITE);
+    display.setCursor(0, 0);
+    display.println("Fast 3D Wave");
+    display.display();
+    delay(1000);
+}
+
+void loop() {
+    int amplitude = analogRead(SOUND_SENSOR_PIN) / 100 + 5;  // More sensitivity
+    Serial.println(amplitude);  // Check if sensor responds
+
+    display.clearDisplay();
+
+    for (int x = 0; x < SCREEN_WIDTH; x += 2) {  
+        float wave1 = sin((x * 0.2) + timeStep);  
+        float wave2 = sin((x * 0.2) - timeStep);  
+        int centerY = SCREEN_HEIGHT / 2;
+
+        for (int z = 0; z < 4; z++) {  
+            float depthFactor = (4 - z) * 0.25;  
+            int y = centerY + amplitude * depthFactor * (wave1 + wave2) / 2;
+            display.drawFastHLine(x, y, 2, WHITE);
+        }
+    }
+
+    display.display();
+    timeStep += 0.2;
+    if (timeStep > TWO_PI) timeStep -= TWO_PI;
+    delay(30);
+}
+
